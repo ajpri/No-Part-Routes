@@ -1,0 +1,58 @@
+# Private runtime configuration; commit the *.example.ini templates.
+/settings.ini*
+/apiKeys.ini*
+/locations.ini*
+*.ini
+!*.example.ini
+.env
+.env.*
+!.env.example
+
+# Generated operational data, including recovery and temporary files.
+/locationCache.csv*
+/usage.ini*
+/logs/
+*.[cC][sS][vV]
+*.[tT][sS][vV]
+*.log
+*.log.*
+
+# Keep only the sanitized Postman template; local exports can contain private data.
+*.postman_collection.json
+!/NoPartRoutes.postman_collection.json
+*.postman_environment.json
+*.postman_globals.json
+
+# Python environments, bytecode, and test/build output.
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Local tools, editor state, and operating-system files.
+.agents/
+.aws/
+.codex/
+.idea/
+.vscode/
+*.swp
+*.swo
+*.bak
+*.backup
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini

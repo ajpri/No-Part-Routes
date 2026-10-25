@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>No Part Routes — API guide</title>
+<style>
+body{font:17px/1.6 system-ui,sans-serif;color:#203040;background:#f8fafb;margin:0}main{max-width:850px;margin:auto;padding:32px 24px 64px}h1,h2,h3{line-height:1.2;color:#132332}a{color:#155caa}pre{background:#eaf0f5;padding:18px;border-radius:8px;overflow:auto;font-size:14px}code{font-family:ui-monospace,monospace}table{border-collapse:collapse;width:100%;font-size:15px}th,td{text-align:left;padding:10px;border-bottom:1px solid #ced8e0}.badge{display:inline-block;background:#dcece5;color:#185941;padding:3px 10px;border-radius:6px;font-size:14px}nav{margin:24px 0}footer{margin-top:40px;border-top:1px solid #ced8e0;padding-top:16px;font-size:14px}
+</style>
+</head>
+<body><main>
+<h1>No Part Routes</h1>
+<p>A small API for driving time and distance, with current traffic, leaving now.</p>
+<p class="badge">API {{API_VERSION}} · Documentation revision {{DOCS_VERSION}}</p>
+<nav><a href="version">Version discovery</a> · <a href="openapi.json">OpenAPI contract</a> · <a href="health">Health check</a></nav>
+
+<h2>Quick start</h2>
+<p>Ask the server owner for the service base URL and your shared secret. Send a JSON request to <code>POST /route</code> with <code>Authorization: Bearer YOUR_SHARED_SECRET</code>. This example uses coordinates and needs no configured labels:</p>
+<pre>curl -X POST "https://routes.example.com/route" \
+  -H "Authorization: Bearer YOUR_SHARED_SECRET" \
+  -H "Content-Type: application/json" \
+  --data '{"from":{"coordinates":{"latitude":29.7604,"longitude":-95.3698}},"to":{"coordinates":{"latitude":29.7499,"longitude":-95.3584}}}'</pre>
+<p>These examples are illustrative. Substitute your service URL, secret, and locations. In Windows Command Prompt, use a JSON file and <code>--data-binary @request.json</code> instead of shell-specific quoting.</p>
+
+<h2>Locations</h2>
+<p>For easier Postman testing, import the distributed <code>NoPartRoutes.postman_collection.json</code>. In the collection's Variables tab, set <code>baseUrl</code> (without a trailing slash), <code>sharedSecret</code>, <code>fromType</code>, <code>fromValue</code>, <code>toType</code>, and <code>toValue</code>. Types are <code>label</code>, <code>address</code>, <code>pluscode</code>, or <code>coordinates</code>; coordinate values use <code>latitude,longitude</code>. Send the <strong>Route — build JSON from fields</strong> request. It builds and escapes JSON automatically and supplies Bearer authorization. The Google key stays on the server.</p>
+<p><code>from</code> and <code>to</code> each contain exactly one of these forms. You may mix forms in the same request.</p>
+<pre>{"label": "home"}
+{"address": "100 Example Street, Example City"}
+{"pluscode": "849VCWC8+R9"}
+{"coordinates": {"latitude": 29.7604, "longitude": -95.3698}}</pre>
+<p>Plus codes identify locations without street addresses. Use a full code such as <code>849VCWC8+R9</code>, or a compound code with locality such as <code>CWC8+R9 Mountain View, CA, USA</code>. A shortened code without locality is ambiguous. Send the literal <code>+</code> in JSON and INI files; the server URL-encodes it for Google. Google validates and resolves the code through Geocoding.</p>
+<p>Labels are defined by the owner in <code>locations.ini</code>. Label comparison ignores case and surrounding whitespace. An unknown label is an error, never an address fallback. Public discovery does not list real locations; authenticated clients can use <code>GET /locations</code>.</p>
+<h3>List saved locations</h3>
+<p>Send <code>GET /locations</code> with the same <code>Authorization: Bearer YOUR_SHARED_SECRET</code> as route requests. It returns loaded labels and user-configured values without calling Google or consuming daily call limits:</p>
+<pre>{
+  "locations": {
+    "home": {"address": "100 Example Street, Example City"},
+    "meeting": {"pluscode": "849VCWC8+R9"},
+    "work": {"coordinates": {"latitude": 29.7604, "longitude": -95.3698}}
+  }
+}</pre>
+<p>Labels are returned in normalized lowercase form. An empty configuration returns <code>{"locations":{}}</code>. Save <code>locations.ini</code> to add, change, or remove labels without restarting. The next route or locations request after a 0.5-second settling interval uses the latest valid file. Invalid or unreadable edits keep the previous valid labels and log a warning in <code>logs/application.log</code>. Each route uses one complete snapshot. An empty valid file removes all labels. Newly added addresses and plus codes resolve when first used. All valid shared secrets can read these values. Responses omit credentials, notes, and Google cache data and use <code>Cache-Control: no-store</code>. The Postman collection includes a Locations request.</p>
+<p>Addresses must be nonempty. Coordinates must be finite numbers: latitude from −90 to 90 and longitude from −180 to 180. Extra fields, duplicate JSON fields, and conflicting forms are rejected. Request bodies are limited to 16 KiB and require Content-Length; chunked uploads are unsupported.</p>
+<pre>{
+  "from": {"label": "home"},
+  "to": {"coordinates": {"latitude": 29.7604, "longitude": -95.3698}}
+}</pre>
+
+<h2>Response and traffic</h2>
+<pre>{
+  "driveMinutes": 18.4,
+  "distanceMiles": 7.26,
+  "summary": "Example route description",
+  "usesTolls": true,
+  "avoidTolls": {
+    "driveMinutes": 24.2,
+    "distanceMiles": 9.15,
+    "summary": "Example route avoiding tolls",
+    "usesTolls": false
+  },
+  "avoidTollsError": null
+}</pre>
+<p><code>driveMinutes</code> is numeric minutes rounded to one decimal. <code>distanceMiles</code> is numeric miles rounded to two decimals. <code>summary</code> is Google's route description or <code>null</code> when unavailable. Numbers may serialize without trailing zeroes. The body always has exactly six top-level fields. The example is illustrative.</p>
+<p>Every request first calculates a Google-recommended driving route with tolls allowed and <code>TRAFFIC_AWARE</code>. The server omits the upstream departure timestamp so Google uses the time of the request as departure now. This avoids rejected past timestamps caused by network latency or clock differences. These are estimates for leaving now, not guarantees. There are no caller-selectable departure times or travel modes, and failed calls never return an old traffic estimate.</p>
+<p><code>usesTolls</code> reports Google's toll detection, including tolls with unknown prices. If true, the server makes one additional request asking Google to avoid tolls and puts its estimate in <code>avoidTolls</code>. Both calculations use the same resolved locations and current traffic. If the primary route has no tolls, <code>avoidTolls</code> and <code>avoidTollsError</code> are null and only one Routes call is needed. Toll prices are not returned.</p>
+<p>Google's <a href="https://developers.google.com/maps/documentation/routes/reference/rest/v2/RouteModifiers">avoid-tolls setting</a> is a preference: the alternative may still have <code>usesTolls: true</code>. The server never makes a third request. If the second calculation fails or is blocked by a daily limit, HTTP 200 preserves the primary result, <code>avoidTolls</code> is null, and <code>avoidTollsError</code> contains its safe <code>code</code> and <code>message</code>. Otherwise <code>avoidTollsError</code> is null. Each outbound Routes attempt consumes the daily cap separately. No additional Postman fields are needed; reimport the collection for updated response checks.</p>
+
+<h2>Location caching</h2>
+<p>Named and direct addresses and plus codes share a CSV-backed resolution cache. Google place IDs are reused; each route still requires a fresh Routes call. User-supplied coordinates bypass geocoding. Saved uncached addresses and plus codes are warmed at startup, and new locations are resolved on first use.</p>
+<p>The service stores place IDs, not Google-returned coordinates or formatted addresses. Any legacy Google coordinates present in the cache are cleared on expiry within their 30-day retention limit. Reading an entry never renews its expiry. A retained place ID can remain usable after coordinate expiry.</p>
+<p>A separate Geocoding API lookup costs an additional call on a cache miss. Caching avoids repeat explicit geocoding; it does not promise lower overall charges than passing addresses directly to Routes.</p>
+
+<h2>Authentication</h2>
+<p>All configured shared secrets grant the same access. Names such as Muse or Grok and their notes are reminders for the owner only. Secrets are case-sensitive and manually managed; there is no account system or automatic exchange. Never put a secret into a URL. Shared-secret and server-setting changes require restarting the service. Location-file edits reload automatically.</p>
+<p><code>/route</code> and <code>/locations</code> require a valid shared secret. <code>/version</code>, <code>/docs</code>, <code>/openapi.json</code>, and <code>/health</code> are public. Health reports liveness and does not check Google credentials or quota.</p>
+
+<h2>Detect changes and refresh instructions</h2>
+<pre>{
+  "apiVersion": "{{API_VERSION}}",
+  "docsVersion": {{DOCS_VERSION}},
+  "docsUrl": "docs",
+  "openapiUrl": "openapi.json"
+}</pre>
+<ol>
+<li>Read <code>/version</code> on first connection and at the start of each session.</li>
+<li>If either version differs from your remembered version, or you have no saved instructions, read <code>/docs</code> and <code>/openapi.json</code> before calling routes.</li>
+<li>Remember the versions of the instructions you read. Watch <code>X-No-Part-Routes-API-Version</code> and <code>X-No-Part-Routes-Docs-Version</code> on all responses. Refresh instructions before the next route call when either changes.</li>
+<li>Stop calls if the refreshed contract is incompatible with your integration, until the integration is updated.</li>
+</ol>
+<p>Release versions use the date-based YY.MM.DD format. The version number does not encode compatibility: refresh the contract when it changes and check that your integration supports it. Documentation revision increases for any published instructions or contract change, including documentation-only edits. Clients must implement the refresh behavior themselves.</p>
+<p>Resolve returned documentation links relative to the service base URL with a trailing slash, including any reverse-proxy prefix. If your base is <code>https://example.com/routes/</code>, the docs URL is <code>https://example.com/routes/docs</code>. All responses use <code>Cache-Control: no-store</code>.</p>
+
+<h2>Errors</h2>
+<p>The owner can set daily Google-call limits. When a local limit is exhausted, a blocked primary route returns <code>429 DAILY_USAGE_LIMIT</code> without making the blocked Google call. If the optional avoid-tolls request is blocked, the primary route returns HTTP 200 with that code in <code>avoidTollsError</code>. Limits count attempted Routes and Geocoding calls separately, including failures and startup warming, and reset at midnight UTC. Counts survive server restarts. They are local guards, not Google's billing totals. If usage counters cannot be saved, Google calls are blocked with <code>503 USAGE_STORAGE_UNAVAILABLE</code>.</p>
+<p>Each response includes <code>X-No-Part-Routes-Request-ID</code>. Give that ID to the server owner to find related request, cache, and Google-call records in the private rotating application log. Logs do not contain secrets, addresses, plus codes, coordinates, route descriptions, or request bodies.</p>
+<pre>{"error":{"code":"UNKNOWN_LABEL","message":"The requested location label is not configured."}}</pre>
+<table><thead><tr><th>Status</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>400</td><td>Invalid request, JSON, location, or unknown label</td></tr>
+<tr><td>401</td><td>Missing or invalid shared secret</td></tr>
+<tr><td>404 / 405</td><td>Unknown endpoint / unsupported method</td></tr>
+<tr><td>408</td><td>Client request timed out</td></tr>
+<tr><td>413 / 415</td><td>Body exceeds 16 KiB / unsupported content type</td></tr>
+<tr><td>422</td><td>Address not resolved or no driving route</td></tr>
+<tr><td>429</td><td>Local daily Google-call limit reached</td></tr>
+<tr><td>500</td><td>Internal server failure</td></tr>
+<tr><td>502</td><td>Google rejected the request or returned unusable data</td></tr>
+<tr><td>503</td><td>Google quota exhausted, unavailable, or unreachable</td></tr>
+<tr><td>504</td><td>Google request timed out</td></tr>
+</tbody></table>
+<p>Each Google HTTP call has a 15-second timeout and is not automatically retried. An uncached pair of addresses can require two geocoding calls followed by a Routes call. Give the client and reverse proxy sufficient time for that sequence. Errors do not expose raw Google responses or credentials.</p>
+
+<h2>Displaying Google results</h2>
+<p>Interfaces displaying these results must follow <a href="https://developers.google.com/maps/documentation/routes/policies">Google's attribution and policy requirements</a>, including Google Maps branding when results are displayed without a map, and use of a Google Map when displaying results on a map. Integration owners must provide the required Terms of Use and Privacy Policy. This API's response does not satisfy those display obligations on its own.</p>
+<p>Prefer the official Google Maps logo. If space prevents its use, display <span translate="no">Google Maps</span> text with Google's required styling near the results. Attribution must be visible even when <code>summary</code> is null; text buried in JSON alone does not satisfy display requirements.</p>
+
+<h2>Change history</h2>
+<p><strong>API 26.10.25 · Documentation 10:</strong> Adopted date-based release versions and Python 3.10 as the supported minimum. Request and response formats are unchanged.</p>
+<p><strong>API 1.0.3 · Documentation 9:</strong> Startup rejects public sample client secrets, including legacy examples. Refreshed setup, private-file, and operating instructions in the README. Route request and response formats are unchanged.</p>
+<p><strong>Pre-deploy update (versions unchanged):</strong> Added conditional toll comparison and partial failure handling; updated Postman response checks.</p>
+<p><strong>API 1.0.2 · Documentation 8:</strong> Location-file edits reload automatically for routes and saved-location listing. Invalid edits retain the last valid labels and log a warning.</p>
+<p><strong>API 1.0.1 · Documentation 7:</strong> Added authenticated <code>GET /locations</code> for saved labels and their configured values, without Google calls. Added the request to the Postman collection.</p>
+<p><strong>API 1.0.0 · Documentation 6:</strong> Increased default daily caps to 150 Routes and 300 Geocoding attempts, and clarified visible attribution requirements. The route summary remains Google's optional description.</p>
+<p><strong>API 1.0.0 · Documentation 5:</strong> Added rotating private application logs, response request IDs, and persistent configurable daily Google-call limits. Local limit exhaustion returns 429; usage storage failures block Google calls with 503.</p>
+<p><strong>API 1.0.0 · Documentation 4:</strong> Fixed Google rejecting explicit leave-now timestamps as past times. Routes now use Google's default request-time departure, retaining current traffic and leaving-now behavior.</p>
+<p><strong>API 1.0.0 · Documentation 3:</strong> Added Postman testing instructions and an importable collection that generates JSON from editable location fields. API behavior is unchanged.</p>
+<p><strong>API 1.0.0 · Documentation 2:</strong> Added <code>pluscode</code> in requests and <code>locations.ini</code>, including full and locality-qualified compound codes. Plus codes use the shared place-ID cache and startup warming. API version remains 1.0.0 at the owner's request.</p>
+<p><strong>API 1.0.0 · Documentation 1:</strong> Initial release. Driving with current traffic; labels, addresses, and coordinates; manual shared secrets; place-ID cache; version discovery and public documentation.</p>
+<footer>No Part Routes · Standard-library Python · See the distributed README for server setup and operation.</footer>
+</main></body></html>

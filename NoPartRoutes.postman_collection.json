@@ -1,0 +1,209 @@
+{
+  "info": {
+    "name": "No Part Routes — Easy Testing",
+    "description": "Open this collection's Variables tab. Set baseUrl and sharedSecret, then choose fromType/toType (label, address, pluscode, or coordinates) and fill in fromValue/toValue. Coordinates use latitude,longitude. Send Route — build JSON from fields; its pre-request script produces properly escaped JSON. Keep baseUrl without a trailing slash. Discovery requests do not call Google. A route request uses your server's Google key; never enter that key here. Routes allow tolls first; if tolls are reported, the server also requests an avoid-tolls route automatically. Both results appear in the response. No extra request variables are needed. Public template only: supplied locations are illustrative and sharedSecret is empty. Keep private service URLs, credentials, personal locations, and saved responses in local exports under another filename; never overwrite this public template with a configured export.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8080",
+      "type": "string",
+      "description": "Service URL, including any proxy prefix, without a trailing slash."
+    },
+    {
+      "key": "sharedSecret",
+      "value": "",
+      "type": "string",
+      "description": "A secret from apiKeys.ini. Enter only the secret, not Bearer or the Google key."
+    },
+    {
+      "key": "fromType",
+      "value": "coordinates",
+      "type": "string",
+      "description": "label, address, pluscode, or coordinates"
+    },
+    {
+      "key": "fromValue",
+      "value": "29.7604,-95.3698",
+      "type": "string",
+      "description": "Label, address, plus code, or latitude,longitude, depending on fromType."
+    },
+    {
+      "key": "toType",
+      "value": "coordinates",
+      "type": "string",
+      "description": "label, address, pluscode, or coordinates"
+    },
+    {
+      "key": "toValue",
+      "value": "29.7499,-95.3584",
+      "type": "string",
+      "description": "Label, address, plus code, or latitude,longitude, depending on toType."
+    }
+  ],
+  "item": [
+    {
+      "name": "Route — build JSON from fields",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "function endpoint(prefix) {",
+              "  const type = String(pm.variables.get(prefix + 'Type') || '').trim().toLowerCase();",
+              "  const value = String(pm.variables.get(prefix + 'Value') || '').trim();",
+              "  if (!value) throw new Error(prefix + 'Value is required.');",
+              "  if (['label', 'address', 'pluscode'].includes(type)) return { [type]: value };",
+              "  if (type !== 'coordinates') throw new Error(prefix + 'Type must be label, address, pluscode, or coordinates.');",
+              "  const parts = value.split(',').map(part => part.trim());",
+              "  if (parts.length !== 2 || parts.some(part => !part)) throw new Error(prefix + 'Value must be latitude,longitude.');",
+              "  const [latitude, longitude] = parts.map(Number);",
+              "  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) throw new Error(prefix + ' coordinates are invalid.');",
+              "  return { coordinates: { latitude, longitude } };",
+              "}",
+              "if (!String(pm.variables.get('sharedSecret') || '').trim()) throw new Error('Set sharedSecret to a secret from apiKeys.ini.');",
+              "pm.variables.set('routeBody', JSON.stringify({ from: endpoint('from'), to: endpoint('to') }, null, 2));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Route succeeded', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) {",
+              "  const result = pm.response.json();",
+              "  function estimate(value) {",
+              "    pm.expect(value.driveMinutes).to.be.a('number');",
+              "    pm.expect(value.driveMinutes).to.be.at.least(0);",
+              "    pm.expect(value.distanceMiles).to.be.a('number');",
+              "    pm.expect(value.distanceMiles).to.be.at.least(0);",
+              "    pm.expect(value.summary === null || typeof value.summary === 'string').to.equal(true);",
+              "    pm.expect(value.usesTolls).to.be.a('boolean');",
+              "  }",
+              "  pm.test('Primary route and toll comparison fields are present', function () {",
+              "    pm.expect(result).to.have.all.keys('driveMinutes', 'distanceMiles', 'summary', 'usesTolls', 'avoidTolls', 'avoidTollsError');",
+              "    estimate(result);",
+              "  });",
+              "  pm.test('Conditional toll comparison is consistent', function () {",
+              "    if (!result.usesTolls) {",
+              "      pm.expect(result.avoidTolls).to.equal(null);",
+              "      pm.expect(result.avoidTollsError).to.equal(null);",
+              "    } else if (result.avoidTolls !== null) {",
+              "      pm.expect(result.avoidTolls).to.have.all.keys('driveMinutes', 'distanceMiles', 'summary', 'usesTolls');",
+              "      estimate(result.avoidTolls);",
+              "      pm.expect(result.avoidTollsError).to.equal(null);",
+              "    } else {",
+              "      pm.expect(result.avoidTollsError).to.have.all.keys('code', 'message');",
+              "      pm.expect(result.avoidTollsError.code).to.be.a('string');",
+              "      pm.expect(result.avoidTollsError.message).to.be.a('string');",
+              "    }",
+              "  });",
+              "}",
+              "pm.test('Version headers are present', function () {",
+              "  pm.expect(pm.response.headers.get('X-No-Part-Routes-API-Version')).to.be.a('string');",
+              "  pm.expect(pm.response.headers.get('X-No-Part-Routes-Docs-Version')).to.be.a('string');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{sharedSecret}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{routeBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/route",
+        "description": "Fill in the collection Variables tab, then Send. The generated body uses JSON.stringify, so addresses containing quotes are safe. Body shows a variable placeholder; inspect the sent request in Postman's Console to view the final JSON. You can mix origin/destination types. Post-response checks appear in Test Results. Top-level values describe the primary route with tolls allowed. usesTolls reports toll use. If true, avoidTolls contains the second estimate, or avoidTollsError contains its failure code/message while the primary route still succeeds. If false, both are null. Avoiding tolls is a preference, so the alternative can still report usesTolls=true. Each outbound Routes attempt counts against the daily cap."
+      }
+    },
+    {
+      "name": "Locations — saved labels (authenticated, no Google call)",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{sharedSecret}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [],
+        "url": "{{baseUrl}}/locations",
+        "description": "Returns loaded labels and their user-configured values. Use a label in the route builder's fromValue/toValue after setting its type to label. Save locations.ini; the next route or locations request after 0.5 seconds reloads it automatically. Invalid edits retain the last valid labels and log a warning."
+      }
+    },
+    {
+      "name": "Version — check for documentation changes",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [],
+        "url": "{{baseUrl}}/version"
+      }
+    },
+    {
+      "name": "Health — no Google call",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [],
+        "url": "{{baseUrl}}/health"
+      }
+    },
+    {
+      "name": "Docs — human-readable guide",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [],
+        "url": "{{baseUrl}}/docs"
+      }
+    },
+    {
+      "name": "OpenAPI — API contract",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [],
+        "url": "{{baseUrl}}/openapi.json"
+      }
+    }
+  ]
+}
