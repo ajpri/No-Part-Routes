@@ -1,6 +1,6 @@
 """Public contract; bump DOCS_VERSION for every published documentation change."""
-API_VERSION = "26.10.25"
-DOCS_VERSION = 10
+API_VERSION = "26.11.19"
+DOCS_VERSION = 11
 
 
 def version_info():
@@ -67,7 +67,7 @@ def openapi():
                  "properties": {"locations": {"type": "object", "additionalProperties": {
                      "oneOf": [option for option in endpoint["oneOf"] if option["required"] != ["label"]]}}}}
     return {"openapi": "3.1.0", "info": {"title": "No Part Routes", "version": API_VERSION,
-             "description": "Read /version each session; re-read /docs and this contract when API or docs versions change. All routes use DRIVE, current traffic and departure now. GET /locations requires a shared secret and lists loaded labels and user-configured values; public discovery does not enumerate them."},
+             "description": "Read /version each session; re-read /docs and this contract when API or docs versions change. All routes use DRIVE, TRAFFIC_AWARE_OPTIMAL, and departure now. GET /locations requires a shared secret and lists loaded labels and user-configured values; public discovery does not enumerate them."},
             "x-docs-version": DOCS_VERSION, "servers": [{"url": ".", "description": "Service base URL (including any proxy prefix)."}],
             "components": {"securitySchemes": {"SharedSecret": {"type": "http", "scheme": "bearer",
                            "description": "Manually chosen shared secret; all configured secrets have equal access."}}},

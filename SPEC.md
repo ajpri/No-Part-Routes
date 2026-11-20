@@ -1,4 +1,4 @@
-# No Part Routes — 26.10.25 specification
+# No Part Routes — 26.11.19 specification
 
 Status: implementation approved by the user on September 30, 2026. This document remains the v1 requirements reference.
 
@@ -84,9 +84,9 @@ The example is illustrative, not a real route result.
 
 The primary request explicitly sets `routeModifiers.avoidTolls=false`. Include `extraComputations=["TOLLS"]` and `routes.travelAdvisory.tollInfo` in the Google field mask on both calculations. If the primary uses tolls, make exactly one second request with `avoidTolls=true`, reusing the same resolved endpoints and route label snapshot. Avoidance is a preference, not a guarantee: report actual toll use for both results. Do not make a third call if the second result still uses tolls. Do not return toll prices. Both outbound attempts consume the existing Routes cap separately; no extra geocoding is needed for the second request.
 
-Primary failure retains the existing HTTP error behavior. A second-calculation failure, including a daily-limit or usage-storage failure, returns HTTP 200 with the successful primary estimate, `avoidTolls=null`, and `avoidTollsError`. Preserve invalid-place-ID cache invalidation on either failure. Log the route preference and comparison error code without location data. The toll-comparison change originally kept API 1.0.2 and documentation revision 8 unchanged; the current release uses date-based API version 26.10.25 and documentation revision 10.
+Primary failure retains the existing HTTP error behavior. A second-calculation failure, including a daily-limit or usage-storage failure, returns HTTP 200 with the successful primary estimate, `avoidTolls=null`, and `avoidTollsError`. Preserve invalid-place-ID cache invalidation on either failure. Log the route preference and comparison error code without location data.
 
-Use `DRIVE`, `TRAFFIC_AWARE`, and `computeAlternativeRoutes=false` on each Google request. Omit Google's optional `departureTime` so it defaults to the time Google processes the request (leaving now). An explicit local timestamp can arrive in the past and be rejected due to latency or clock differences. Request only the Google fields needed for this contract. Do not silently return a traffic-unaware or previously cached estimate if the requested calculation fails.
+Use `DRIVE`, `TRAFFIC_AWARE_OPTIMAL`, and `computeAlternativeRoutes=false` on each Google request. Omit Google's optional `departureTime` so it defaults to the time Google processes the request (leaving now). An explicit local timestamp can arrive in the past and be rejected due to latency or clock differences. Request only the Google fields needed for this contract. Do not silently return a traffic-unaware or previously cached estimate if the requested calculation fails.
 
 ### Discovery and health
 
@@ -108,8 +108,8 @@ JSON remains the HTTP wire format; it is not used for settings or persistent cac
 
 ```json
 {
-  "apiVersion": "26.10.25",
-  "docsVersion": 10,
+  "apiVersion": "26.11.19",
+  "docsVersion": 11,
   "docsUrl": "docs",
   "openapiUrl": "openapi.json"
 }

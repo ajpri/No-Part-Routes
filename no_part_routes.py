@@ -520,7 +520,7 @@ class GoogleClient:
         # Omitting departureTime means now on Google's clock. An explicit local
         # "now" can be in the past on arrival (latency or clock skew) and is rejected.
         payload = {"origin": origin, "destination": destination, "travelMode": "DRIVE",
-                   "routingPreference": "TRAFFIC_AWARE",
+                   "routingPreference": "TRAFFIC_AWARE_OPTIMAL",
                    "computeAlternativeRoutes": False,
                    "routeModifiers": {"avoidTolls": avoid_tolls},
                    "extraComputations": ["TOLLS"]}

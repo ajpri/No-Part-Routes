@@ -68,7 +68,7 @@ class TollHTTPTests(fixtures.HTTPFixture):
         for index, payload in enumerate(payloads):
             self.assertEqual(payload["routeModifiers"], {"avoidTolls": bool(index)})
             self.assertEqual(payload["extraComputations"], ["TOLLS"])
-            self.assertEqual(payload["routingPreference"], "TRAFFIC_AWARE")
+            self.assertEqual(payload["routingPreference"], "TRAFFIC_AWARE_OPTIMAL")
             self.assertNotIn("departureTime", payload)
             self.assertIn("routes.travelAdvisory.tollInfo", self.opener.call_args_list[index + 1].args[0].get_header("X-goog-fieldmask"))
         self.assertEqual(payloads[0]["origin"], payloads[1]["origin"])
@@ -155,5 +155,5 @@ class TollHTTPTests(fixtures.HTTPFixture):
             "driveMinutes", "distanceMiles", "summary", "usesTolls", "avoidTolls", "avoidTollsError"})
         self.assertEqual(schema["properties"]["avoidTolls"]["oneOf"][0]["required"], [
             "driveMinutes", "distanceMiles", "summary", "usesTolls"])
-        self.assertEqual(docs.API_VERSION, "26.10.25")
-        self.assertEqual(docs.DOCS_VERSION, 10)
+        self.assertEqual(docs.API_VERSION, "26.11.19")
+        self.assertEqual(docs.DOCS_VERSION, 11)
