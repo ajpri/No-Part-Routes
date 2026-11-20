@@ -284,7 +284,7 @@ class GoogleTests(unittest.TestCase):
         self.assertEqual(result, {"driveMinutes": 18.4, "distanceMiles": 7.26, "summary": "via Example Road", "usesTolls": False})
         request = opener.call_args.args[0]
         body = json.loads(request.data)
-        self.assertEqual(body["routingPreference"], "TRAFFIC_AWARE")
+        self.assertEqual(body["routingPreference"], "TRAFFIC_AWARE_OPTIMAL")
         self.assertEqual(body["travelMode"], "DRIVE")
         self.assertNotIn("departureTime", body)
         self.assertFalse(body["computeAlternativeRoutes"])
@@ -424,7 +424,7 @@ class ApplicationTests(ApplicationFixture):
         def google_request(request, timeout):
             payload = json.loads(request.data)
             self.assertNotIn("departureTime", payload)
-            self.assertEqual(payload["routingPreference"], "TRAFFIC_AWARE")
+            self.assertEqual(payload["routingPreference"], "TRAFFIC_AWARE_OPTIMAL")
             return io.BytesIO(b'{"routes":[{"duration":"60s","distanceMeters":100}]}')
         self.app.google = npr.GoogleClient("fake-key", Mock(side_effect=google_request))
         # Regression: Google rejects explicit past timestamps. Even a skewed

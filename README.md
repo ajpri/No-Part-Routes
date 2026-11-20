@@ -4,7 +4,7 @@ A small HTTP API for Google driving time and distance, with current traffic and 
 
 ## Development status
 
-API version **26.10.25**, documentation revision **10**. Startup rejects the public sample client secrets, including the original examples. The route request and response formats are unchanged. Recent updates added live location-file reload, saved-location discovery, toll comparisons, rotating logs, and persistent daily Google-call limits.
+API version **26.11.19**, documentation revision **11**. This release uses Google Maps' routing mode for live estimates. Startup rejects the public sample client secrets, including the original examples. The route request and response formats are unchanged. Recent updates added live location-file reload, saved-location discovery, toll comparisons, rotating logs, and persistent daily Google-call limits.
 
 This is a Python standard-library application for a single server process per installation. There are no Python packages to install, no database, and no automatic Python installation.
 
@@ -152,7 +152,7 @@ An illustrative response:
 }
 ```
 
-Minutes are rounded to one decimal and miles to two. `summary` is Google's description or null. Every calculation uses driving with current traffic and departure now; old route results are not cached.
+Minutes are rounded to one decimal and miles to two. `summary` is Google's description or null. Every calculation uses driving with `TRAFFIC_AWARE_OPTIMAL` and departure now; old route results are not cached.
 
 The first calculation allows tolls. If Google reports toll use, the service makes one additional calculation with `avoidTolls=true`, reusing the resolved endpoints. `avoidTolls` contains the same four estimate fields. Avoidance is a preference, so check the alternative's `usesTolls`. Toll prices are not returned.
 
